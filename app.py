@@ -32,12 +32,6 @@ st.set_page_config(page_title="Rechnungsverarbeitung", page_icon="📄", layout=
 
 BEISPIEL_DOKUMENTE = ["rechnung_dachdecker.pdf", "rechnung_hotel.pdf", "rechnung_restaurant.pdf"]
 
-BRANCHEN_KEYS = ["Allgemein", "Hotel", "Restaurant", "Friseur", "Handwerker", "Dachdecker", "Möbelentsorger"]
-BRANCHEN_LABELS = {
-    "de": BRANCHEN_KEYS,
-    "en": ["General", "Hotel", "Restaurant", "Hair Salon", "Tradesperson", "Roofer", "Furniture Disposal"],
-}
-
 SPALTEN_LABELS = {
     "de": {
         "dateiname": "Datei",
@@ -53,7 +47,6 @@ SPALTEN_LABELS = {
         "gesamtbetrag": "Gesamtbetrag (€)",
         "iban": "IBAN",
         "ust_id": "USt-ID",
-        "branchen_hinweis": "Branchen-Zusatzinfo",
         "extraktionsmethode": "Methode",
         "hinweise": "Hinweise",
     },
@@ -71,7 +64,6 @@ SPALTEN_LABELS = {
         "gesamtbetrag": "Total (€)",
         "iban": "IBAN",
         "ust_id": "VAT ID",
-        "branchen_hinweis": "Industry Notes",
         "extraktionsmethode": "Method",
         "hinweise": "Notes",
     },
@@ -90,9 +82,7 @@ TXT = {
             "Nur diese öffentliche Demo ist aus Kostenschutz-Gründen auf die drei Beispielrechnungen "
             "unten beschränkt. {kontakt}"
         ),
-        "privacy": "🔒 Dateien werden nur im Arbeitsspeicher dieser Sitzung verarbeitet, nichts wird gespeichert.",
         "ocr_missing": "OCR für gescannte/fotografierte Belege ist hier nicht aktiv. Text-PDFs funktionieren trotzdem direkt.",
-        "branche_label": "Branche (für Zusatz-Hinweise)",
         "step1_header": "1. Beispielrechnung herunterladen",
         "step1_caption": "Lade eine oder mehrere Beispielrechnungen herunter und zieh sie unten in das Upload-Feld.",
         "step2_header": "2. Hochladen & Ergebnis prüfen",
@@ -127,9 +117,7 @@ TXT = {
             "The software itself works with any invoice or receipt from any industry. Only this public "
             "demo is limited to the three sample invoices below, to keep it free for everyone to try. {kontakt}"
         ),
-        "privacy": "🔒 Files are only processed in this session's server memory - nothing is stored.",
         "ocr_missing": "OCR for scanned/photographed receipts isn't active here. Text-based PDFs still work directly.",
-        "branche_label": "Industry (for extra notes)",
         "step1_header": "1. Download a sample invoice",
         "step1_caption": "Download one or more sample invoices, then drag them into the upload field below.",
         "step2_header": "2. Upload & review the result",
@@ -241,14 +229,9 @@ def main() -> None:
 
     if demo:
         st.info(t["demo_banner"].format(kontakt=t["kontakt"]), icon="👋")
-        st.caption(t["privacy"])
 
     if not TESSERACT_AVAILABLE:
         st.info(t["ocr_missing"], icon="ℹ️")
-
-    branche_label_gewaehlt = st.selectbox(t["branche_label"], BRANCHEN_LABELS[lang], index=0)
-    branche_idx = BRANCHEN_LABELS[lang].index(branche_label_gewaehlt)
-    branche = BRANCHEN_KEYS[branche_idx]
 
     if demo:
         st.subheader(t["step1_header"])
@@ -301,7 +284,7 @@ def main() -> None:
             for datei in dateien:
                 file_bytes = datei.getvalue()
                 extraction = extract(file_bytes, datei.name)
-                daten = parse(extraction.text, filename=datei.name, branche=branche)
+                daten = parse(extraction.text, filename=datei.name)
                 daten.extraktionsmethode = extraction.method
                 hinweise_teile = []
                 fehlende = fehlende_pflichtfelder(daten)
@@ -320,6 +303,7 @@ def main() -> None:
         st.session_state["verarbeitete_dateien"] = [d.name for d in dateien]
 
     df = pd.DataFrame(st.session_state["ergebnisse"])
+    df = df.drop(columns=["branchen_hinweis"], errors="ignore")
     df = df.rename(columns=SPALTEN_LABELS[lang])
 
     st.subheader((t["step3_prefix"] if demo else "") + t["results_header"])
