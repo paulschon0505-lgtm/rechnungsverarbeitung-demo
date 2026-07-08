@@ -13,6 +13,7 @@ Belege aus Datenschutzgründen nicht in die Cloud schicken wollen.
 
 from __future__ import annotations
 
+import hashlib
 from dataclasses import asdict
 from io import BytesIO
 from pathlib import Path
@@ -26,30 +27,7 @@ from parser import parse
 st.set_page_config(page_title="Rechnungsverarbeitung", page_icon="📄", layout="wide")
 
 BEISPIEL_DOKUMENTE = ["rechnung_dachdecker.pdf", "rechnung_hotel.pdf", "rechnung_restaurant.pdf"]
-KONTAKT_HINWEIS = (
-    "Das ist eine öffentliche Demo mit Beispielrechnungen. Für eure eigenen "
-    "Dokumente - inkl. Anbindung an eure Excel-/Buchhaltungssoftware und "
-    "Feinabstimmung auf eure Lieferanten - meldet euch bei mir für eine "
-    "individuelle Einrichtung."
-)
-
-
-def _demo_modus() -> bool:
-    try:
-        return str(st.secrets.get("DEMO_MODE", "false")).lower() == "true"
-    except Exception:
-        return False
-
-
-class _BeispielDatei:
-    """Stellt eine mitgelieferte Beispieldatei wie ein st.file_uploader-Ergebnis dar."""
-
-    def __init__(self, name: str):
-        self.name = name
-        self._pfad = Path(__file__).parent / name
-
-    def getvalue(self) -> bytes:
-        return self._pfad.read_bytes()
+KONTAKT_HINWEIS = "Für deine eigenen Dokumente inkl. Anbindung an deine Buchhaltung: sprich mich an."
 
 SPALTEN_LABELS = {
     "dateiname": "Datei",
@@ -74,6 +52,22 @@ BRANCHEN = ["Allgemein", "Hotel", "Restaurant", "Friseur", "Handwerker", "Dachde
 
 NEUE_SPALTE_PRAEFIX = "🆕 Neue Spalte: "
 NICHT_UEBERNEHMEN = "— nicht übernehmen —"
+
+
+def _demo_modus() -> bool:
+    try:
+        return str(st.secrets.get("DEMO_MODE", "false")).lower() == "true"
+    except Exception:
+        return False
+
+
+def _beispiel_hashes() -> dict[str, str]:
+    """sha256 -> Dateiname der mitgelieferten Beispieldokumente."""
+    hashes = {}
+    for name in BEISPIEL_DOKUMENTE:
+        daten = (Path(__file__).parent / name).read_bytes()
+        hashes[hashlib.sha256(daten).hexdigest()] = name
+    return hashes
 
 
 def _to_excel(df: pd.DataFrame) -> bytes:
@@ -128,50 +122,58 @@ def main() -> None:
     demo = _demo_modus()
 
     st.title("📄 Dokumenten- & Rechnungsverarbeitung")
-    st.caption(
-        "Automatisch die wichtigsten Daten aus Rechnungen & Belegen auslesen - "
-        "kostenlos, lokal, ohne Cloud-KI. Passt für Hotels, Restaurants, Friseure, "
-        "Handwerker, Dachdecker, Möbelentsorger u.v.m."
-    )
+    st.caption("Automatisch die wichtigsten Daten aus Rechnungen & Belegen auslesen – branchenoffen, kostenlos, lokal.")
 
     if demo:
-        st.info(f"👋 {KONTAKT_HINWEIS}", icon="👋")
+        st.info(f"Demo mit Beispielrechnungen. {KONTAKT_HINWEIS}", icon="👋")
 
     if not TESSERACT_AVAILABLE:
         st.info(
-            "ℹ️ OCR (für gescannte/fotografierte Belege) ist aktuell nicht aktiv, "
-            "da Tesseract lokal nicht gefunden wurde. Text-PDFs (z.B. Rechnungen aus "
-            "Buchhaltungssoftware) funktionieren bereits ohne weitere Installation. "
-            "Details zur kostenlosen Installation von Tesseract stehen in der README.",
+            "OCR für gescannte/fotografierte Belege ist hier nicht aktiv. "
+            "Text-PDFs funktionieren trotzdem direkt.",
             icon="ℹ️",
         )
 
     with st.sidebar:
         st.header("Einstellungen")
         branche = st.selectbox("Branche (für Zusatz-Hinweise)", BRANCHEN, index=0)
-        st.markdown("---")
-        st.markdown(
-            "**So funktioniert's:**\n"
-            "1. Dateien hochladen\n"
-            "2. Ergebnisse prüfen & bei Bedarf korrigieren\n"
-            "3. Als Excel-Tabelle herunterladen"
-        )
-        st.markdown("---")
-        st.caption(
-            "🔒 Diese Demo verarbeitet Dateien nur im Arbeitsspeicher des Servers "
-            "für diese Sitzung, es wird nichts dauerhaft gespeichert. Bitte trotzdem "
-            "in dieser öffentlichen Demo nur Test-/Beispieldokumente hochladen, keine "
-            "echten sensiblen Rechnungen. Im produktiven Einsatz läuft die App lokal "
-            "beim Unternehmen, dann verlässt kein Dokument den eigenen Rechner."
-        )
+        if demo:
+            st.caption("🔒 Dateien werden nur im Arbeitsspeicher dieser Sitzung verarbeitet, nichts wird gespeichert.")
 
     if demo:
-        ausgewaehlt = st.multiselect(
-            "Beispielrechnungen auswählen (in dieser Demo kein eigener Upload)",
-            BEISPIEL_DOKUMENTE,
-            default=BEISPIEL_DOKUMENTE,
+        st.subheader("1. Beispielrechnung herunterladen")
+        st.caption("Lade eine oder mehrere Beispielrechnungen herunter und zieh sie unten in das Upload-Feld.")
+        beispiel_cols = st.columns(len(BEISPIEL_DOKUMENTE))
+        for col, name in zip(beispiel_cols, BEISPIEL_DOKUMENTE):
+            with col:
+                st.download_button(
+                    f"⬇️ {name}",
+                    data=(Path(__file__).parent / name).read_bytes(),
+                    file_name=name,
+                    key=f"dl_{name}",
+                    use_container_width=True,
+                )
+
+        st.subheader("2. Hochladen & Ergebnis prüfen")
+        hochgeladen = st.file_uploader(
+            "Beispielrechnung(en) hier hochladen",
+            type=["pdf", "png", "jpg", "jpeg", "tif", "tiff", "bmp"],
+            accept_multiple_files=True,
         )
-        dateien = [_BeispielDatei(name) for name in ausgewaehlt]
+        dateien = []
+        if hochgeladen:
+            bekannte_hashes = _beispiel_hashes()
+            ungueltig = []
+            for d in hochgeladen:
+                if hashlib.sha256(d.getvalue()).hexdigest() in bekannte_hashes:
+                    dateien.append(d)
+                else:
+                    ungueltig.append(d.name)
+            if ungueltig:
+                st.warning(
+                    f"Diese Demo verarbeitet nur die drei bereitgestellten Beispieldateien "
+                    f"(übersprungen: {', '.join(ungueltig)}). {KONTAKT_HINWEIS}"
+                )
     else:
         dateien = st.file_uploader(
             "Rechnungen/Belege hochladen (PDF, PNG, JPG - auch mehrere gleichzeitig)",
@@ -180,7 +182,6 @@ def main() -> None:
         )
 
     if not dateien:
-        st.markdown("Noch keine Dateien ausgewählt.")
         return
 
     branche_arg = "" if branche == "Allgemein" else branche
@@ -211,8 +212,8 @@ def main() -> None:
     df = pd.DataFrame(st.session_state["ergebnisse"])
     df = df.rename(columns=SPALTEN_LABELS)
 
-    st.subheader("Extrahierte Daten (editierbar)")
-    st.caption("Prüfe die automatisch erkannten Werte und korrigiere sie bei Bedarf direkt in der Tabelle.")
+    st.subheader(("3. " if demo else "") + "Extrahierte Daten (editierbar)")
+    st.caption("Werte prüfen und bei Bedarf direkt in der Tabelle korrigieren.")
 
     bearbeitet = st.data_editor(df, num_rows="dynamic", use_container_width=True, key="editor")
 
@@ -228,10 +229,7 @@ def main() -> None:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             type="primary",
         )
-        st.caption(
-            "Das Anhängen an eine bestehende Firmen-Excel-Tabelle (mit automatischer "
-            f"Spaltenzuordnung) ist Teil der individuellen Einrichtung. {KONTAKT_HINWEIS}"
-        )
+        st.caption(f"Anhängen an eure bestehende Excel-Tabelle ist Teil der individuellen Einrichtung. {KONTAKT_HINWEIS}")
         with st.expander("Rohtext der Dokumente ansehen (zur Kontrolle)"):
             for eintrag in st.session_state.get("rohtexte", []):
                 st.markdown(f"**{eintrag['dateiname']}** (Methode: {eintrag['methode']})")
