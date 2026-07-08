@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 from io import BytesIO
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
@@ -23,6 +24,32 @@ from extractor import TESSERACT_AVAILABLE, extract
 from parser import parse
 
 st.set_page_config(page_title="Rechnungsverarbeitung", page_icon="📄", layout="wide")
+
+BEISPIEL_DOKUMENTE = ["rechnung_dachdecker.pdf", "rechnung_hotel.pdf", "rechnung_restaurant.pdf"]
+KONTAKT_HINWEIS = (
+    "Das ist eine öffentliche Demo mit Beispielrechnungen. Für eure eigenen "
+    "Dokumente - inkl. Anbindung an eure Excel-/Buchhaltungssoftware und "
+    "Feinabstimmung auf eure Lieferanten - meldet euch bei mir für eine "
+    "individuelle Einrichtung."
+)
+
+
+def _demo_modus() -> bool:
+    try:
+        return str(st.secrets.get("DEMO_MODE", "false")).lower() == "true"
+    except Exception:
+        return False
+
+
+class _BeispielDatei:
+    """Stellt eine mitgelieferte Beispieldatei wie ein st.file_uploader-Ergebnis dar."""
+
+    def __init__(self, name: str):
+        self.name = name
+        self._pfad = Path(__file__).parent / name
+
+    def getvalue(self) -> bytes:
+        return self._pfad.read_bytes()
 
 SPALTEN_LABELS = {
     "dateiname": "Datei",
@@ -98,12 +125,17 @@ def _mit_master_zusammenfuehren(neue_zeilen: pd.DataFrame, master_df: pd.DataFra
 
 
 def main() -> None:
+    demo = _demo_modus()
+
     st.title("📄 Dokumenten- & Rechnungsverarbeitung")
     st.caption(
         "Automatisch die wichtigsten Daten aus Rechnungen & Belegen auslesen - "
         "kostenlos, lokal, ohne Cloud-KI. Passt für Hotels, Restaurants, Friseure, "
         "Handwerker, Dachdecker, Möbelentsorger u.v.m."
     )
+
+    if demo:
+        st.info(f"👋 {KONTAKT_HINWEIS}", icon="👋")
 
     if not TESSERACT_AVAILABLE:
         st.info(
@@ -133,14 +165,22 @@ def main() -> None:
             "beim Unternehmen, dann verlässt kein Dokument den eigenen Rechner."
         )
 
-    dateien = st.file_uploader(
-        "Rechnungen/Belege hochladen (PDF, PNG, JPG - auch mehrere gleichzeitig)",
-        type=["pdf", "png", "jpg", "jpeg", "tif", "tiff", "bmp"],
-        accept_multiple_files=True,
-    )
+    if demo:
+        ausgewaehlt = st.multiselect(
+            "Beispielrechnungen auswählen (in dieser Demo kein eigener Upload)",
+            BEISPIEL_DOKUMENTE,
+            default=BEISPIEL_DOKUMENTE,
+        )
+        dateien = [_BeispielDatei(name) for name in ausgewaehlt]
+    else:
+        dateien = st.file_uploader(
+            "Rechnungen/Belege hochladen (PDF, PNG, JPG - auch mehrere gleichzeitig)",
+            type=["pdf", "png", "jpg", "jpeg", "tif", "tiff", "bmp"],
+            accept_multiple_files=True,
+        )
 
     if not dateien:
-        st.markdown("Noch keine Dateien hochgeladen.")
+        st.markdown("Noch keine Dateien ausgewählt.")
         return
 
     branche_arg = "" if branche == "Allgemein" else branche
@@ -178,6 +218,27 @@ def main() -> None:
 
     st.markdown("---")
     st.subheader("Export")
+
+    if demo:
+        excel_bytes = _to_excel(bearbeitet)
+        st.download_button(
+            "⬇️ Als Excel herunterladen",
+            data=excel_bytes,
+            file_name="rechnungsdaten_demo.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            type="primary",
+        )
+        st.caption(
+            "Das Anhängen an eine bestehende Firmen-Excel-Tabelle (mit automatischer "
+            f"Spaltenzuordnung) ist Teil der individuellen Einrichtung. {KONTAKT_HINWEIS}"
+        )
+        with st.expander("Rohtext der Dokumente ansehen (zur Kontrolle)"):
+            for eintrag in st.session_state.get("rohtexte", []):
+                st.markdown(f"**{eintrag['dateiname']}** (Methode: {eintrag['methode']})")
+                st.text(eintrag["text"][:3000] or "(kein Text erkannt)")
+                st.markdown("---")
+        return
+
     master_datei = st.file_uploader(
         "Bestehende Excel-Tabelle verknüpfen (optional) - neue Zeilen werden angehängt statt eine neue Datei zu erzeugen",
         type=["xlsx"],

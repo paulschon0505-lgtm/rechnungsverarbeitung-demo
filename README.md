@@ -69,6 +69,27 @@ umstellen - inklusive "als neue Spalte anlegen", falls die Firmentabelle das
 Feld noch nicht kennt. Bestehende Zeilen und Spalten bleiben dabei erhalten;
 heruntergeladen wird die zusammengeführte Datei, die dann die alte ersetzt.
 
+## Öffentliche Portfolio-Demo (Demo-Modus)
+
+Für eine öffentliche Live-Demo (z. B. via Streamlit Community Cloud) gibt es
+einen eingeschränkten Demo-Modus: Besucher können nur die drei mitgelieferten
+Beispielrechnungen verarbeiten (kein eigener Upload, keine
+Excel-Merge-Funktion) - so bleibt die Demo ein Kompetenz-Nachweis, ohne dass
+jemand seine echten Firmenrechnungen kostenlos über die öffentliche URL
+verarbeiten kann.
+
+Aktiviert wird das über ein Streamlit Secret, **nicht** über eine Datei im
+Repo (damit es lokal bei dir immer im vollen Modus bleibt):
+
+- Lokal testen: `.streamlit/secrets.toml` mit `DEMO_MODE = "true"` anlegen
+  (Ordner ist in `.gitignore`, wird nie committet)
+- Auf Streamlit Community Cloud: App-Einstellungen → "Secrets" →
+  `DEMO_MODE = "true"` eintragen
+
+Ohne gesetztes Secret läuft die App immer im vollen Modus (freier Upload,
+Excel-Merge) - das ist der Standard für den lokalen/produktiven Einsatz bei
+einem Kunden.
+
 ## Projektstruktur
 
 - `extractor.py` – Text-/OCR-Extraktion aus PDF/Bild
