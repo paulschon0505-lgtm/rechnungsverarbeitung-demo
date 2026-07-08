@@ -214,16 +214,21 @@ def parse(text: str, filename: str = "", branche: str = "") -> Rechnungsdaten:
     if branche:
         daten.branchen_hinweis = _branchen_hinweis(text, branche)
 
-    fehlende = [
-        label
-        for label, wert in [
-            ("Rechnungsnummer", daten.rechnungsnummer),
-            ("Rechnungsdatum", daten.rechnungsdatum),
-            ("Gesamtbetrag", daten.gesamtbetrag),
+    return daten
+
+
+def fehlende_pflichtfelder(daten: Rechnungsdaten) -> list[str]:
+    """Interne Feldnamen der wichtigsten Felder, die nicht erkannt wurden.
+
+    Sprachneutral gehalten - die Übersetzung ins Anzeigeformat passiert
+    im UI-Layer (app.py), das die passenden Spaltenbezeichnungen kennt.
+    """
+    return [
+        feld
+        for feld, wert in [
+            ("rechnungsnummer", daten.rechnungsnummer),
+            ("rechnungsdatum", daten.rechnungsdatum),
+            ("gesamtbetrag", daten.gesamtbetrag),
         ]
         if not wert
     ]
-    if fehlende:
-        daten.hinweise = "Bitte prüfen/ergänzen: " + ", ".join(fehlende)
-
-    return daten
