@@ -28,6 +28,11 @@ st.set_page_config(page_title="Rechnungsverarbeitung", page_icon="📄", layout=
 
 BEISPIEL_DOKUMENTE = ["rechnung_dachdecker.pdf", "rechnung_hotel.pdf", "rechnung_restaurant.pdf"]
 KONTAKT_HINWEIS = "Für deine eigenen Dokumente inkl. Anbindung an deine Buchhaltung: sprich mich an."
+DEMO_ERKLAERUNG = (
+    "Die Software selbst funktioniert mit beliebigen Rechnungen und Belegen jeder Branche. "
+    "Nur diese öffentliche Demo ist aus Kostenschutz-Gründen auf die drei Beispielrechnungen "
+    f"unten beschränkt. {KONTAKT_HINWEIS}"
+)
 
 SPALTEN_LABELS = {
     "dateiname": "Datei",
@@ -125,7 +130,8 @@ def main() -> None:
     st.caption("Automatisch die wichtigsten Daten aus Rechnungen & Belegen auslesen – branchenoffen, kostenlos, lokal.")
 
     if demo:
-        st.info(f"Demo mit Beispielrechnungen. {KONTAKT_HINWEIS}", icon="👋")
+        st.info(DEMO_ERKLAERUNG, icon="👋")
+        st.caption("🔒 Dateien werden nur im Arbeitsspeicher dieser Sitzung verarbeitet, nichts wird gespeichert.")
 
     if not TESSERACT_AVAILABLE:
         st.info(
@@ -134,11 +140,7 @@ def main() -> None:
             icon="ℹ️",
         )
 
-    with st.sidebar:
-        st.header("Einstellungen")
-        branche = st.selectbox("Branche (für Zusatz-Hinweise)", BRANCHEN, index=0)
-        if demo:
-            st.caption("🔒 Dateien werden nur im Arbeitsspeicher dieser Sitzung verarbeitet, nichts wird gespeichert.")
+    branche = st.selectbox("Branche (für Zusatz-Hinweise)", BRANCHEN, index=0)
 
     if demo:
         st.subheader("1. Beispielrechnung herunterladen")
